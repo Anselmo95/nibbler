@@ -4,6 +4,11 @@ local edits = require("nibbler.edits")
 
 local M = {}
 local display_enabled = true
+local display_mapping = {
+    hex = 'dec',
+    bin = 'dec',
+    dec = 'hex',
+}
 
 local function clean_number(word)
   return word:gsub("[uUlLi][%w%d]*$", ""):gsub("_", "")
@@ -73,11 +78,17 @@ local function display_decimal_representation()
     local cword = vim.fn.expand('<cword>')
     local number, base = parse_number(cword)
 
-    if number and not string.match(base, 'dec') then
-        local cursor_pos = api.nvim_win_get_cursor(0)
-        local row, _ = cursor_pos[1] - 1, cursor_pos[2]
-        clear_virtual_text()
-        api.nvim_buf_set_virtual_text(0, ns_id, row, { { tostring(number), 'Comment' } }, {})
+    if number then
+        if display_mapping[base] then
+            local cursor_pos = api.nvim_win_get_cursor(0)
+            local row, col = cursor_pos[1] - 1, cursor_pos[2]
+            clear_virtual_text()
+            local opts = {
+                virt_text = {{ convert_number_to_base(number, display_mapping[base]), 'Comment' }},
+                virt_text_pos = 'eol'
+            }
+            api.nvim_buf_set_extmark(0, ns_id, row, col, opts)
+        end
     else
         clear_virtual_text()
     end
@@ -89,7 +100,6 @@ local function toggle_real_time_display()
         clear_virtual_text()
     end
 end
-
 
 local function convert_selected_base(target_base, toggle)
     vim.cmd('normal! v:leave')
@@ -197,6 +207,9 @@ end
 function M.setup(opts)
     if opts and opts.display_enabled ~= nil then
         display_enabled = opts.display_enabled
+    end
+    if opts and opts.display_mapping ~= nil then
+        display_mapping = opts.display_mapping
     end
 
     api.nvim_create_user_command("NibblerToggle", function() convert_selected_base(nil, true) end, {
